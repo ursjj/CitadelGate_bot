@@ -7,7 +7,7 @@ app = Flask(__name__)
 
 # Environment Configurations
 TELEGRAM_TOKEN = os.environ.get("8539050051:AAE8JmT5HgTbgdJ9lnjChKc9baGyDS3PB8k")
-GEMINI_API_KEY = os.environ.get("AIzaSyBrWMR6TEpJqXTyze_d9D8mn4ZInt4dr0o")
+GEMINI_API_KEY = os.environ.get("AIzaSyBnYZeaZw6Qvsx3fy01RKsZoRVCxIVISxM")
 GROUP_CHAT_ID = os.environ.get("-5147212177")
 
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
