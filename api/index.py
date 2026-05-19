@@ -2,6 +2,7 @@ import os
 from flask import Flask, request, jsonify
 import requests
 from google import genai
+from google.genai import types  # <-- Required for configuration classes in the new SDK!
 
 app = Flask(__name__)
 
@@ -17,32 +18,38 @@ try:
     if GEMINI_API_KEY:
         ai_client = genai.Client(api_key=GEMINI_API_KEY)
     else:
-        # Fallback if Vercel environmental sync is still registering
         ai_client = genai.Client()
 except Exception as e:
     print(f"Initialization Error: {e}")
     ai_client = None
 
 def analyze_message_with_ai(text: str) -> str:
-    # If client failed to initialize, fail-safe to safe mode to prevent 500 crashes
     if not ai_client:
+        print("AI Client not initialized, passing message through as safe.")
         return "SAFE"
         
     system_instruction = (
         "You are an advanced moderation AI for a BGMI Card Exchange Telegram group. "
         "Users are ONLY allowed to trade game cards for other cards. "
-        "Selling cards for real cash or in-game popularity (pops) is banned. "
+        "Selling cards for real cash, UPI, or in-game popularity (pops) is banned. "
         "External channel promotion or social media links are banned. "
         "CRITICAL: If someone says 'no money' or 'no pops', they are complying with rules. That is SAFE. "
         "Analyze the intent. Respond with exactly one word: 'SAFE' or 'VIOLATION'."
     )
+    
     try:
+        # Correct google-genai SDK implementation using types.GenerateContentConfig
         response = ai_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=text,
-            config={"system_instruction": system_instruction, "temperature": 0.0}
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                temperature=0.0
+            )
         )
-        return response.text.strip().upper()
+        result = response.text.strip().upper()
+        print(f"AI Evaluation for phrase [{text}]: {result}")
+        return result
     except Exception as e:
         print(f"Gemini API Runtime Error: {e}")
         return "SAFE"
@@ -55,6 +62,8 @@ def handle_webhook():
 
     try:
         update_json = request.get_json()
+        print(f"Incoming Update Payload: {update_json}")  # This will force tracking visibility in Vercel logs!
+        
         if update_json and "message" in update_json and "text" in update_json["message"]:
             msg = update_json["message"]
             chat_id = msg["chat"]["id"]
@@ -62,8 +71,12 @@ def handle_webhook():
             user_text = msg["text"]
             user_name = msg["from"].get("username", msg["from"].get("first_name", "User"))
 
-            if "VIOLATION" in analyze_message_with_ai(user_text):
+            ai_verdict = analyze_message_with_ai(user_text)
+            if "VIOLATION" in ai_verdict:
+                print(f"Violation confirmed. Executing cleanup on message {message_id} in chat {chat_id}")
+                # 1. Delete the bad message
                 requests.post(f"{BASE_TELEGRAM_URL}/deleteMessage", json={"chat_id": chat_id, "message_id": message_id})
+                # 2. Issue formal warning
                 warning_text = f"⚠️ @{user_name}, message removed! No cash/popularity deals or promotions allowed."
                 requests.post(f"{BASE_TELEGRAM_URL}/sendMessage", json={"chat_id": chat_id, "text": warning_text})
     except Exception as e:
