@@ -9,7 +9,7 @@ app = Flask(__name__)
 # Fetch configurations from Environment Variables
 TELEGRAM_TOKEN = os.environ.get("8539050051:AAE8JmT5HgTbgdJ9lnjChKc9baGyDS3PB8k")
 GEMINI_API_KEY = os.environ.get("AIzaSyBnYZeaZw6Qvsx3fy01RKsZoRVCxIVISxM")
-GROUP_CHAT_ID = "-1002485930211" 
+GROUP_CHAT_ID = "-1003977136118" 
 
 BASE_TELEGRAM_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
