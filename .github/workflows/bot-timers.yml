@@ -1,0 +1,29 @@
+name: BGMI Group Automation Timers
+
+on:
+  schedule:
+    # 18:30 UTC is exactly 12:00 AM Midnight Indian Standard Time (IST)
+    - cron: '30 18 * * *'
+    # 01:30 UTC is exactly 07:00 AM Morning Indian Standard Time (IST)
+    - cron: '30 1 * * *'
+  workflow_dispatch: # Adds a manual "Run" trigger button directly on the website interface!
+
+jobs:
+  ping_endpoints:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Calculate Time and Trigger Vercel Webhook
+        run: |
+          UTC_HOUR=$(date -u +%H)
+          echo "Current system background hour in UTC is: $UTC_HOUR"
+          
+          if [ "$UTC_HOUR" -eq "18" ]; then
+            echo "Executing Midnight Lock Routine..."
+            curl -X POST https://citadel-gate-bot.vercel.app/secret-lock-endpoint
+          elif [ "$UTC_HOUR" -eq "01" ]; then
+            echo "Executing Morning Unlock and Rule Announcement..."
+            curl -X POST https://citadel-gate-bot.vercel.app/secret-unlock-endpoint
+          else
+            echo "Manual override execution triggered; running unlock diagnostics check..."
+            curl -X POST https://citadel-gate-bot.vercel.app/secret-unlock-endpoint
+          fi
