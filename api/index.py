@@ -62,7 +62,11 @@ def handle_webhook():
 
     try:
         update_json = request.get_json()
-        print(f"Incoming Update Payload: {update_json}")  # This will force tracking visibility in Vercel logs!
+        
+        # DEBUG STAGE 1: Tell the group we received data!
+        if update_json:
+            debug_info = f"🤖 Received payload type: {'message' in update_json}"
+            requests.post(f"{BASE_TELEGRAM_URL}/sendMessage", json={"chat_id": GROUP_CHAT_ID, "text": debug_info})
         
         if update_json and "message" in update_json and "text" in update_json["message"]:
             msg = update_json["message"]
@@ -71,18 +75,28 @@ def handle_webhook():
             user_text = msg["text"]
             user_name = msg["from"].get("username", msg["from"].get("first_name", "User"))
 
+            # DEBUG STAGE 2: Tell the group what text we are analyzing
+            requests.post(f"{BASE_TELEGRAM_URL}/sendMessage", json={"chat_id": chat_id, "text": f"🔍 Analyzing text: {user_text}"})
+
             ai_verdict = analyze_message_with_ai(user_text)
+            
+            # DEBUG STAGE 3: Tell the group what Gemini decided
+            requests.post(f"{BASE_TELEGRAM_URL}/sendMessage", json={"chat_id": chat_id, "text": f"🤖 Gemini Verdict: {ai_verdict}"})
+
             if "VIOLATION" in ai_verdict:
-                print(f"Violation confirmed. Executing cleanup on message {message_id} in chat {chat_id}")
                 # 1. Delete the bad message
                 requests.post(f"{BASE_TELEGRAM_URL}/deleteMessage", json={"chat_id": chat_id, "message_id": message_id})
                 # 2. Issue formal warning
                 warning_text = f"⚠️ @{user_name}, message removed! No cash/popularity deals or promotions allowed."
                 requests.post(f"{BASE_TELEGRAM_URL}/sendMessage", json={"chat_id": chat_id, "text": warning_text})
+                
     except Exception as e:
-        print(f"Webhook processing error: {e}")
+        # DEBUG STAGE 4: Print the exact crash reason directly in the chat layout
+        error_msg = f"❌ Webhook crash log: {str(e)}"
+        requests.post(f"{BASE_TELEGRAM_URL}/sendMessage", json={"chat_id": GROUP_CHAT_ID, "text": error_msg})
 
     return jsonify({"status": "handled"}), 200
+
 
 # --- SECRET ROUTE: TRIGGER LOCK FROM GITHUB ---
 @app.route('/secret-lock-endpoint', methods=['POST', 'GET'])
