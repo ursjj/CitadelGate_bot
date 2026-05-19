@@ -48,7 +48,7 @@ def analyze_message_with_ai(text: str) -> str:
         return "SAFE"
 
 # --- MAIN REAL-TIME WEBHOOK FOR MODERATION ---
-@app.route('/', methods=['POST', 'GET'])
+@app.route('/webhook', methods=['POST', 'GET'])
 def handle_webhook():
     if request.method == 'GET':
         return "Bot system is active and monitoring.", 200
