@@ -1,8 +1,8 @@
+import os
+
 from flask import Flask, request, jsonify
 
-from telegram import Bot
-
-import os
+import requests
 
 from google import genai
 
@@ -12,11 +12,17 @@ app = Flask(__name__)
 
 
 
-# Initialize APIs from Environment Variables
+# Fetch configurations from Environment Variables
 
-bot = Bot(token=os.environ.get("8539050051:AAE8JmT5HgTbgdJ9lnjChKc9baGyDS3PB8k"))
+TELEGRAM_TOKEN = os.environ.get("8539050051:AAE8JmT5HgTbgdJ9lnjChKc9baGyDS3PB8k")
 
-ai_client = genai.Client(api_key=os.environ.get("AIzaSyBrWMR6TEpJqXTyze_d9D8mn4ZInt4dr0o"))
+GEMINI_API_KEY = os.environ.get("AIzaSyBrWMR6TEpJqXTyze_d9D8mn4ZInt4dr0o")
+
+
+
+# Initialize Gemini Client
+
+ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 
@@ -52,23 +58,31 @@ def analyze_message_with_ai(text: str) -> str:
 
         return response.text.strip().upper()
 
-    except Exception:
+    except Exception as e:
+
+        print(f"Gemini Error: {e}")
 
         return "SAFE"
 
 
 
-@app.route('/', methods=['POST'])
+@app.route('/', methods=['POST', 'GET'])
 
-async def handle_webhook():
+def handle_webhook():
+
+    if request.method == 'GET':
+
+        return "Bot system is active and monitoring.", 200
+
+
 
     update_json = request.get_json()
 
     
 
-    # Check if this is a standard text message in a group
+    # Safely verify it's a standard text message
 
-    if "message" in update_json and "text" in update_json["message"]:
+    if update_json and "message" in update_json and "text" in update_json["message"]:
 
         msg = update_json["message"]
 
@@ -78,26 +92,46 @@ async def handle_webhook():
 
         user_text = msg["text"]
 
-        user_name = msg["from"].get("username", msg["from"].get("id"))
+        user_name = msg["from"].get("username", msg["from"].get("first_name", "User"))
 
 
 
-        # Run AI filtering
+        # Fire up the AI engine evaluation
 
-        if "VIOLATION" in analyze_message_with_ai(user_text):
-
-            try:
-
-                await bot.delete_message(chat_id=chat_id, message_id=message_id)
-
-                warning_text = f"⚠️ @{user_name}, message removed! No cash/popularity deals or promotions allowed."
-
-                await bot.send_message(chat_id=chat_id, text=warning_text)
-
-            except Exception as e:
-
-                print(f"Error handling restriction: {e}")
+        verdict = analyze_message_with_ai(user_text)
 
 
 
-    return jsonify({"status": "ok"}), 200
+        if "VIOLATION" in verdict:
+
+            base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+
+            
+
+            # 1. Delete the message
+
+            requests.post(f"{base_url}/deleteMessage", json={
+
+                "chat_id": chat_id,
+
+                "message_id": message_id
+
+            })
+
+            
+
+            # 2. Fire the warning notification tag
+
+            warning_text = f"⚠️ @{user_name}, message removed! No cash/popularity deals or promotions allowed here."
+
+            requests.post(f"{base_url}/sendMessage", json={
+
+                "chat_id": chat_id,
+
+                "text": warning_text
+
+            })
+
+
+
+    return jsonify({"status": "handled"}), 200
